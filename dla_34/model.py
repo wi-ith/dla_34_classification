@@ -85,7 +85,7 @@ class DLA_34(object):
                 output = tc.layers.conv2d(image, 16, 7, 1,
                                           activation_fn=tf.nn.relu6,
                                           normalizer_fn=self.normalizer,
-                                          normalizer_params=self.bn_params)  # base layerdsSSSSSSSSSSSSS
+                                          normalizer_params=self.bn_params)  # base layer
                 #level 0
                 output = tc.layers.conv2d(output, 16, 3, 1,
                                           activation_fn=tf.nn.relu6,

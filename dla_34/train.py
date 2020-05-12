@@ -19,7 +19,6 @@ from six.moves import xrange
 
 import dla_34
 import input
-import validation
 import flags
 
 
@@ -44,9 +43,12 @@ def average_gradients(tower_grads):
 
 
 with tf.Graph().as_default(), tf.device('/cpu:0'):
-    global_step = tf.get_variable(
-          'global_step', [],
-          initializer=tf.constant_initializer(0), trainable=False)
+    global_step = tf.Variable(
+        initial_value=0,
+        name="global_step",
+        trainable=False,
+        collections=[tf.GraphKeys.GLOBAL_STEP, tf.GraphKeys.GLOBAL_VARIABLES],
+        dtype=tf.float32)
 
     lr=FLAGS.learning_rate
     # opt = tf.train.RMSPropOptimizer(lr, decay=0.9, momentum=0.9, epsilon=1)
@@ -86,14 +88,16 @@ with tf.Graph().as_default(), tf.device('/cpu:0'):
                     tower_grads.append(grads)
                     tower_losses.append(loss)
 
+    total_loss = tf.reduce_mean(tower_losses)
+    summaries.append(tf.summary.scalar('total_loss', total_loss))
+
     grads = average_gradients(tower_grads)
 
-
     #validation
-    val_images, val_labels = input.inputs(1)
+    with tf.name_scope('eval_images'):
+        val_images, val_labels = input.inputs(1)
     with tf.device('/gpu:0'):
-        with tf.name_scope('eval_images'):
-          pred = dla_34.inference(val_images)
+        pred_val, labels_val = dla_34.inference(val_images,val_labels)
 
     summaries.extend(tf.get_collection(tf.GraphKeys.SUMMARIES, 'train_images'))
     summaries.extend(tf.get_collection(tf.GraphKeys.SUMMARIES, 'eval_images'))
@@ -141,7 +145,7 @@ with tf.Graph().as_default(), tf.device('/cpu:0'):
                              save_model_secs=0,
                              init_fn=init_fn)
     config_ = tf.ConfigProto(allow_soft_placement=True)
-    config_.gpu_options.per_process_gpu_memory_fraction = 0.4
+    config_.gpu_options.per_process_gpu_memory_fraction = 0.65
 
     # sess=sv.managed_session(config=config_)
     with sv.managed_session(config=config_) as sess:
@@ -151,38 +155,48 @@ with tf.Graph().as_default(), tf.device('/cpu:0'):
         for step in xrange(FLAGS.max_steps):
             start_time = time.time()
             sess.run(train_op)
-            loss_value = sess.run(loss)
+            sv_global_step, loss_value = sess.run([sv.global_step, loss])
             duration = time.time() - start_time
 
 
             assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
 
-            if step % 10 == 0:
+            if sv_global_step % 100 == 0:
                 num_examples_per_step = FLAGS.batch_size * FLAGS.num_gpus
                 examples_per_sec = num_examples_per_step / duration
                 sec_per_batch = duration / FLAGS.num_gpus
-
-                format_str = ('%s: step %d, loss = %.2f (%.1f examples/sec; %.3f '
+                Epoch_ = np.round(sv_global_step / (FLAGS.num_train / FLAGS.batch_size), 2)
+                format_str = ('Epoch : %.2f   step %d, loss = %.2f (%.1f examples/sec; %.3f '
                             'sec/batch)')
-                print (format_str % (datetime.now(), step, loss_value,
+                print (format_str % (Epoch_, sv_global_step, loss_value,
                                      examples_per_sec, sec_per_batch))
 
-            if step % 100 == 0:
+            if sv_global_step % 10 == 0:
                 summary_str = sess.run(summary_op)
+                sv.summary_computed(sess, summary_str)
 
-            if step % (int(FLAGS.num_train / FLAGS.batch_size)*4) == 0 and step!=0:
+            if sv_global_step % (int(FLAGS.num_train / FLAGS.batch_size)*4) == 0 and sv_global_step!=0:
 
                 print('start validation')
-
+                collect = 0
                 for val_step in range(FLAGS.num_validation):
 
-                    if val_step%500==0:
+                    if val_step%5000==0:
                         print(val_step,' / ',FLAGS.num_validation)
-                    val_cls_pred = sess.run([pred])
+                    val_cls_pred, val_GT = sess.run([pred_val,labels_val])
+                    prediction_ = np.argmax(val_cls_pred)
+                    if prediction_ == val_GT:
+                        collect+=1
+                accuracy_top1=collect/FLAGS.num_validation
+                print(accuracy_top1," % ")
 
-                    Prediction, num_GT = validation.one_image_validation(val_cls_pred)
+                summary = tf.Summary()
+                summary.ParseFromString(sess.run(summary_op))
+                summary.value.add(tag='Top1', simple_value=float(accuracy_top1))
+                sv.summary_computed(sess, summary)
 
+            if sv_global_step % (int(FLAGS.num_train / FLAGS.batch_size) * 1) == 0 and sv_global_step != 0:
                 checkpoint_path = os.path.join(FLAGS.ckpt_save_path, 'model.ckpt')
-                saver.save(sess, checkpoint_path, global_step=step)
+                saver.save(sess, checkpoint_path, global_step=sv.global_step)
 
 

@@ -13,7 +13,7 @@ def random_crop_image(image,
                       labels,
                       min_object_covered=0.05,
                       aspect_ratio_range=(0.75, 1.33),
-                      area_range=(0.1, 1.0),
+                      area_range=(0.08, 1.0),
                       overlap_thresh=0.3,
                       clip_boxes=True):
 

@@ -260,8 +260,12 @@ def eval_augmentation(image_encoded, labels):
 
         image_encoded.set_shape([None, None, 3])
         with tf.name_scope('ResizeImage'):
-            new_image = tf.image.resize_images(image_encoded, tf.stack([FLAGS.image_size, FLAGS.image_size]))
-        image = new_image / 255.
+            new_image = tf.image.resize_images(image_encoded, tf.stack([FLAGS.val_image_size, FLAGS.val_image_size]))
+            w_ct = int(FLAGS.val_image_size / 2.)
+            h_ct = int(FLAGS.val_image_size / 2.)
+            offset = int(FLAGS.image_size / 2.)
+            ct_crop_new_image = new_image[w_ct-offset:w_ct+offset,h_ct-offset:h_ct+offset,:]
+        image = ct_crop_new_image / 255.
         image = (image - imagenet_mean) / imagenet_std
 
         return image, labels

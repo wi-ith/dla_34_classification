@@ -21,7 +21,7 @@ def soft_max(logits, axis=-1):
 
     return exp_logits / exp_sum
 
-def inference(images):
+def inference(images,labels):
 
     with slim.arg_scope([slim.model_variable, slim.variable], device='/cpu:0'):
 
@@ -31,7 +31,7 @@ def inference(images):
 
         prediction = soft_max(logits,-1)
 
-        return prediction
+        return prediction, labels
 
 def loss(images, labels):
 
@@ -40,10 +40,8 @@ def loss(images, labels):
         train_model = model.DLA_34(is_training=True, input_size=FLAGS.image_size)
 
         logits=train_model._build_model(images)
-
-        loss = tf.losses.sparse_softmax_cross_entropy(labels,logits)
-
-        # loss = tf.losses.softmax_cross_entropy(logits,labels)
+        one_hot_labels = tf.one_hot(labels,FLAGS.num_classes)
+        loss = tf.losses.softmax_cross_entropy(onehot_labels = one_hot_labels,logits = logits)
 
     return loss
 
