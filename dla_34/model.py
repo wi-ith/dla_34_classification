@@ -140,13 +140,13 @@ class DLA_34(object):
                                                     output_dims=256)
 
                 #level 5
-                output_lv5_1, output_lv5_1_residual = self.basic_block(output_lv4_2_root, 64, stride=2, scope='output_lv5_1', dilation=1)
-                output_lv5_2, _ = self.basic_block(output_lv5_1, 64, stride=1, scope='output_lv5_2', dilation=1)
+                output_lv5_1, output_lv5_1_residual = self.basic_block(output_lv4_2_root, 512, stride=2, scope='output_lv5_1', dilation=1)
+                output_lv5_2, _ = self.basic_block(output_lv5_1, 512, stride=1, scope='output_lv5_2', dilation=1)
                 output_lv5_root = self.root_block(output_lv5_1,
                                                   output_lv5_2,
                                                   output_lv5_1_residual,
                                                   scope='output_lv5_root',
-                                                  output_dims=64)
+                                                  output_dims=512)
 
                 pool_size = FLAGS.image_size // 32
                 avg_pool = tf.nn.avg_pool(output_lv5_root, (1,pool_size,pool_size,1), (1,1,1,1), padding='VALID')
